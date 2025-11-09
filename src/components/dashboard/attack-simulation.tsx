@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -9,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from "@/hooks/use-toast";
+import type { AttackState } from '@/app/page';
 
 const attackTypeNames: { [key: string]: string } = {
   syn_flood: 'SYN Flood',
@@ -16,7 +18,11 @@ const attackTypeNames: { [key: string]: string } = {
   ddos: 'DDoS Attack',
 };
 
-export default function AttackSimulation() {
+interface AttackSimulationProps {
+    onAttackStateChange: (state: AttackState) => void;
+}
+
+export default function AttackSimulation({ onAttackStateChange }: AttackSimulationProps) {
   const [attackType, setAttackType] = useState('syn_flood');
   const [targetIp, setTargetIp] = useState('192.168.1.102');
   const [duration, setDuration] = useState(30);
@@ -31,18 +37,20 @@ export default function AttackSimulation() {
     } else if (progress >= 100) {
       setIsSimulating(false);
       setProgress(0);
+      onAttackStateChange({ type: null, targetIp: null, isActive: false });
       toast({
         title: "Simulation Complete",
         description: `The ${attackTypeNames[attackType] || 'attack'} simulation has finished.`,
       });
     }
     return () => clearTimeout(timer);
-  }, [isSimulating, progress, duration, attackType, toast]);
+  }, [isSimulating, progress, duration, attackType, toast, onAttackStateChange]);
 
   const handleLaunchAttack = () => {
     if (targetIp.match(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/)) {
         setIsSimulating(true);
         setProgress(0);
+        onAttackStateChange({ type: attackType as AttackState['type'], targetIp, isActive: true });
         toast({
             title: "Simulation Started",
             description: `Launching ${attackTypeNames[attackType] || 'attack'} on ${targetIp}.`,

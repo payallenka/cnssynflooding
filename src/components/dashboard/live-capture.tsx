@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from "@/lib/utils";
+import type { AttackState } from '@/app/page';
 
 type Protocol = 'TCP' | 'UDP' | 'ICMP' | 'ARP';
 
@@ -21,6 +23,10 @@ interface Packet {
   info: string;
 }
 
+interface LiveCaptureProps {
+  activeAttack: AttackState;
+}
+
 const protocolColors: Record<Protocol, string> = {
   TCP: 'bg-blue-400/20 text-blue-400 border-blue-400/30',
   UDP: 'bg-purple-400/20 text-purple-400 border-purple-400/30',
@@ -31,6 +37,7 @@ const protocolColors: Record<Protocol, string> = {
 const generateRandomIp = () => `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 
 const protocols: Protocol[] = ['TCP', 'UDP', 'ICMP', 'ARP'];
+
 const generateRandomPacket = (id: number): Packet => {
   const protocol = protocols[Math.floor(Math.random() * protocols.length)];
   return {
@@ -44,24 +51,49 @@ const generateRandomPacket = (id: number): Packet => {
   };
 };
 
-export default function LiveCapture() {
+const generateSynPacket = (id: number, destination: string): Packet => {
+  return {
+    id,
+    time: new Date().toLocaleTimeString(),
+    source: generateRandomIp(),
+    destination: destination,
+    protocol: 'TCP',
+    length: 60,
+    info: '[SYN] Connection request',
+  };
+}
+
+export default function LiveCapture({ activeAttack }: LiveCaptureProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [packets, setPackets] = useState<Packet[]>([]);
+
+  useEffect(() => {
+    if (activeAttack.isActive && activeAttack.type === 'syn_flood' && activeAttack.targetIp) {
+      // If an attack is active, force capture to start
+      if (!isCapturing) setIsCapturing(true);
+    }
+  }, [activeAttack.isActive, activeAttack.type, isCapturing]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
     if (isCapturing) {
       interval = setInterval(() => {
         setPackets(prevPackets => {
-          const newPackets = [generateRandomPacket(prevPackets.length + 1), ...prevPackets];
-          return newPackets.length > 100 ? newPackets.slice(0, 100) : newPackets;
+          let newPacket: Packet;
+          if (activeAttack.isActive && activeAttack.type === 'syn_flood' && activeAttack.targetIp) {
+            newPacket = generateSynPacket(prevPackets.length + 1, activeAttack.targetIp);
+          } else {
+            newPacket = generateRandomPacket(prevPackets.length + 1);
+          }
+          const newPackets = [newPacket, ...prevPackets];
+          return newPackets.length > 200 ? newPackets.slice(0, 200) : newPackets;
         });
-      }, 1000);
+      }, activeAttack.isActive ? 100 : 1000); // Faster packet generation during attack
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isCapturing]);
+  }, [isCapturing, activeAttack]);
 
 
   const toggleCapture = () => {
@@ -82,7 +114,7 @@ export default function LiveCapture() {
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 space-y-0 pb-2">
         <CardTitle>Live Packet Capture</CardTitle>
         <div className="flex items-center space-x-2">
-          <Button onClick={toggleCapture} variant={isCapturing ? 'destructive' : 'default'} size="sm" className="w-[140px]">
+          <Button onClick={toggleCapture} variant={isCapturing ? 'destructive' : 'default'} size="sm" className="w-[140px]" disabled={activeAttack.isActive}>
             {isCapturing ? <Square className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
             {isCapturing ? 'Stop Capture' : 'Start Capture'}
           </Button>
@@ -112,7 +144,10 @@ export default function LiveCapture() {
             <TableBody>
               {packets.length > 0 ? (
                 packets.map((packet) => (
-                  <TableRow key={packet.id} className="animate-in fade-in-20 duration-500">
+                  <TableRow key={packet.id} className={cn(
+                    "animate-in fade-in-20 duration-500",
+                    packet.protocol === 'TCP' && packet.info.includes('[SYN]') && 'bg-destructive/10'
+                  )}>
                     <TableCell className="font-mono text-xs">{packet.time}</TableCell>
                     <TableCell className="font-mono text-xs">{packet.source}</TableCell>
                     <TableCell className="font-mono text-xs">{packet.destination}</TableCell>

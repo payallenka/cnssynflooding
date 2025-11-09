@@ -1,9 +1,21 @@
+
+"use client";
+
+import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Header from '@/components/header';
 import LiveCapture from '@/components/dashboard/live-capture';
 import AttackSimulation from '@/components/dashboard/attack-simulation';
 
+export type AttackState = {
+  type: 'syn_flood' | 'arp_poisoning' | 'ddos' | null;
+  targetIp: string | null;
+  isActive: boolean;
+};
+
 export default function Home() {
+  const [activeAttack, setActiveAttack] = useState<AttackState>({ type: null, targetIp: null, isActive: false });
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
       <Header />
@@ -14,10 +26,10 @@ export default function Home() {
             <TabsTrigger value="simulation">Attack Simulation</TabsTrigger>
           </TabsList>
           <TabsContent value="capture" className="mt-6">
-            <LiveCapture />
+            <LiveCapture activeAttack={activeAttack} />
           </TabsContent>
           <TabsContent value="simulation" className="mt-6">
-            <AttackSimulation />
+            <AttackSimulation onAttackStateChange={setActiveAttack} />
           </TabsContent>
         </Tabs>
       </main>
