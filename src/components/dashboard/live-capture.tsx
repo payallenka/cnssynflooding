@@ -24,7 +24,7 @@ interface Packet {
 }
 
 interface LiveCaptureProps {
-  activeAttack: AttackState;
+  attackState: AttackState;
 }
 
 const protocolColors: Record<Protocol, string> = {
@@ -63,16 +63,17 @@ const generateSynPacket = (id: number, destination: string): Packet => {
   };
 }
 
-export default function LiveCapture({ activeAttack }: LiveCaptureProps) {
+export default function LiveCapture({ attackState }: LiveCaptureProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [packets, setPackets] = useState<Packet[]>([]);
+  const isAttackActive = attackState.isSimulating && attackState.type === 'syn_flood';
 
   useEffect(() => {
-    if (activeAttack.isActive && activeAttack.type === 'syn_flood' && activeAttack.targetIp) {
-      // If an attack is active, force capture to start
+    // If a SYN flood attack is active, force capture to start
+    if (isAttackActive) {
       if (!isCapturing) setIsCapturing(true);
     }
-  }, [activeAttack.isActive, activeAttack.type, isCapturing]);
+  }, [isAttackActive, isCapturing]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
@@ -80,20 +81,20 @@ export default function LiveCapture({ activeAttack }: LiveCaptureProps) {
       interval = setInterval(() => {
         setPackets(prevPackets => {
           let newPacket: Packet;
-          if (activeAttack.isActive && activeAttack.type === 'syn_flood' && activeAttack.targetIp) {
-            newPacket = generateSynPacket(prevPackets.length + 1, activeAttack.targetIp);
+          if (isAttackActive && attackState.targetIp) {
+            newPacket = generateSynPacket(prevPackets.length + 1, attackState.targetIp);
           } else {
             newPacket = generateRandomPacket(prevPackets.length + 1);
           }
           const newPackets = [newPacket, ...prevPackets];
           return newPackets.length > 200 ? newPackets.slice(0, 200) : newPackets;
         });
-      }, activeAttack.isActive ? 100 : 1000); // Faster packet generation during attack
+      }, isAttackActive ? 100 : 1000); // Faster packet generation during attack
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isCapturing, activeAttack]);
+  }, [isCapturing, isAttackActive, attackState.targetIp]);
 
 
   const toggleCapture = () => {
@@ -114,7 +115,7 @@ export default function LiveCapture({ activeAttack }: LiveCaptureProps) {
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 space-y-0 pb-2">
         <CardTitle>Live Packet Capture</CardTitle>
         <div className="flex items-center space-x-2">
-          <Button onClick={toggleCapture} variant={isCapturing ? 'destructive' : 'default'} size="sm" className="w-[140px]" disabled={activeAttack.isActive}>
+          <Button onClick={toggleCapture} variant={isCapturing ? 'destructive' : 'default'} size="sm" className="w-[140px]" disabled={isAttackActive}>
             {isCapturing ? <Square className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
             {isCapturing ? 'Stop Capture' : 'Start Capture'}
           </Button>
