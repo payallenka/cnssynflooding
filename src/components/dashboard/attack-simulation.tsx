@@ -10,6 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { useToast } from "@/hooks/use-toast";
 
+const attackTypeNames: { [key: string]: string } = {
+  syn_flood: 'SYN Flood',
+  arp_poisoning: 'ARP Poisoning',
+  ddos: 'DDoS Attack',
+};
+
 export default function AttackSimulation() {
   const [attackType, setAttackType] = useState('syn_flood');
   const [targetIp, setTargetIp] = useState('192.168.1.102');
@@ -27,7 +33,7 @@ export default function AttackSimulation() {
       setProgress(0);
       toast({
         title: "Simulation Complete",
-        description: `The ${attackType === 'syn_flood' ? 'SYN Flood' : 'ARP Poisoning'} simulation has finished.`,
+        description: `The ${attackTypeNames[attackType] || 'attack'} simulation has finished.`,
       });
     }
     return () => clearTimeout(timer);
@@ -39,7 +45,7 @@ export default function AttackSimulation() {
         setProgress(0);
         toast({
             title: "Simulation Started",
-            description: `Launching ${attackType === 'syn_flood' ? 'SYN Flood' : 'ARP Poisoning'} attack on ${targetIp}.`,
+            description: `Launching ${attackTypeNames[attackType] || 'attack'} on ${targetIp}.`,
         });
     } else {
         toast({
@@ -67,6 +73,7 @@ export default function AttackSimulation() {
                 <SelectContent>
                 <SelectItem value="syn_flood">SYN Flood</SelectItem>
                 <SelectItem value="arp_poisoning">ARP Poisoning</SelectItem>
+                <SelectItem value="ddos">DDoS Attack</SelectItem>
                 </SelectContent>
             </Select>
             </div>
