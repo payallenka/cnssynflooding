@@ -1,7 +1,6 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
 import { Play, Square, Download, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,22 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from "@/lib/utils";
-import type { AttackState } from '@/app/page';
-
-type Protocol = 'TCP' | 'UDP' | 'ICMP' | 'ARP';
-
-interface Packet {
-  id: number;
-  time: string;
-  source: string;
-  destination: string;
-  protocol: Protocol;
-  length: number;
-  info: string;
-}
+import type { AttackState, Packet, Protocol } from '@/app/page';
 
 interface LiveCaptureProps {
   attackState: AttackState;
+  packets: Packet[];
+  isCapturing: boolean;
+  toggleCapture: () => void;
+  clearPackets: () => void;
 }
 
 const protocolColors: Record<Protocol, string> = {
@@ -34,81 +25,9 @@ const protocolColors: Record<Protocol, string> = {
   ARP: 'bg-orange-400/20 text-orange-400 border-orange-400/30',
 };
 
-const generateRandomIp = () => `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
 
-const protocols: Protocol[] = ['TCP', 'UDP', 'ICMP', 'ARP'];
-
-const generateRandomPacket = (id: number): Packet => {
-  const protocol = protocols[Math.floor(Math.random() * protocols.length)];
-  return {
-    id,
-    time: new Date().toLocaleTimeString(),
-    source: generateRandomIp(),
-    destination: generateRandomIp(),
-    protocol,
-    length: Math.floor(Math.random() * 1400) + 60,
-    info: `[${protocol}] Segment of a reassembled PDU`,
-  };
-};
-
-const generateSynPacket = (id: number, destination: string): Packet => {
-  return {
-    id,
-    time: new Date().toLocaleTimeString(),
-    source: generateRandomIp(),
-    destination: destination,
-    protocol: 'TCP',
-    length: 60,
-    info: '[SYN] Connection request',
-  };
-}
-
-export default function LiveCapture({ attackState }: LiveCaptureProps) {
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [packets, setPackets] = useState<Packet[]>([]);
+export default function LiveCapture({ attackState, packets, isCapturing, toggleCapture, clearPackets }: LiveCaptureProps) {
   const isAttackActive = attackState.isSimulating && attackState.type === 'syn_flood';
-
-  useEffect(() => {
-    // If a SYN flood attack is active, force capture to start
-    if (isAttackActive) {
-      if (!isCapturing) setIsCapturing(true);
-    }
-  }, [isAttackActive, isCapturing]);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
-    if (isCapturing) {
-      interval = setInterval(() => {
-        setPackets(prevPackets => {
-          let newPacket: Packet;
-          if (isAttackActive && attackState.targetIp) {
-            newPacket = generateSynPacket(prevPackets.length + 1, attackState.targetIp);
-          } else {
-            newPacket = generateRandomPacket(prevPackets.length + 1);
-          }
-          const newPackets = [newPacket, ...prevPackets];
-          return newPackets.length > 200 ? newPackets.slice(0, 200) : newPackets;
-        });
-      }, isAttackActive ? 100 : 1000); // Faster packet generation during attack
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isCapturing, isAttackActive, attackState.targetIp]);
-
-
-  const toggleCapture = () => {
-    if (!isCapturing && packets.length === 0) {
-      // Prefill some data on first start
-      const initialPackets = Array.from({ length: 10 }, (_, i) => generateRandomPacket(i + 1)).reverse();
-      setPackets(initialPackets);
-    }
-    setIsCapturing(!isCapturing);
-  };
-  
-  const clearPackets = () => {
-    setPackets([]);
-  }
 
   return (
     <Card>

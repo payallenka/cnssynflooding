@@ -24,6 +24,47 @@ export type AttackState = {
   isSimulating: boolean;
 };
 
+export type Protocol = 'TCP' | 'UDP' | 'ICMP' | 'ARP';
+
+export interface Packet {
+  id: number;
+  time: string;
+  source: string;
+  destination: string;
+  protocol: Protocol;
+  length: number;
+  info: string;
+}
+
+const generateRandomIp = () => `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+const protocols: Protocol[] = ['TCP', 'UDP', 'ICMP', 'ARP'];
+
+const generateRandomPacket = (id: number): Packet => {
+  const protocol = protocols[Math.floor(Math.random() * protocols.length)];
+  return {
+    id,
+    time: new Date().toLocaleTimeString(),
+    source: generateRandomIp(),
+    destination: generateRandomIp(),
+    protocol,
+    length: Math.floor(Math.random() * 1400) + 60,
+    info: `[${protocol}] Segment of a reassembled PDU`,
+  };
+};
+
+const generateSynPacket = (id: number, destination: string): Packet => {
+  return {
+    id,
+    time: new Date().toLocaleTimeString(),
+    source: generateRandomIp(),
+    destination: destination,
+    protocol: 'TCP',
+    length: 60,
+    info: '[SYN] Connection request',
+  };
+}
+
+
 export default function Home() {
   const [attackState, setAttackState] = useState<AttackState>({
     type: 'syn_flood',
@@ -32,8 +73,13 @@ export default function Home() {
     progress: 0,
     isSimulating: false,
   });
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [packets, setPackets] = useState<Packet[]>([]);
   const { toast } = useToast();
 
+  const isAttackActive = attackState.isSimulating && attackState.type === 'syn_flood';
+
+  // Effect for attack simulation progress
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (attackState.isSimulating && attackState.progress < 100) {
@@ -50,14 +96,36 @@ export default function Home() {
             description: `The ${attackTypeNames[attackState.type]} simulation has finished.`,
         });
       }
-      setAttackState(prevState => ({ ...prevState, isSimulating: false, progress: 0, type: null }));
+      setAttackState(prevState => ({ ...prevState, isSimulating: false, progress: 0, type: prevState.type }));
     }
     return () => clearTimeout(timer);
   }, [attackState.isSimulating, attackState.progress, attackState.duration, attackState.type, toast]);
 
+  // Effect for packet generation
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (isCapturing) {
+      interval = setInterval(() => {
+        setPackets(prevPackets => {
+          let newPacket: Packet;
+          if (isAttackActive && attackState.targetIp) {
+            newPacket = generateSynPacket(prevPackets.length + 1, attackState.targetIp);
+          } else {
+            newPacket = generateRandomPacket(prevPackets.length + 1);
+          }
+          const newPackets = [newPacket, ...prevPackets];
+          return newPackets.length > 200 ? newPackets.slice(0, 200) : newPackets;
+        });
+      }, isAttackActive ? 100 : 1000); // Faster packet generation during attack
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isCapturing, isAttackActive, attackState.targetIp]);
 
   const handleLaunchAttack = () => {
     if (attackState.targetIp.match(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/)) {
+        if (!isCapturing) setIsCapturing(true); // Start capturing if not already
         setAttackState(prevState => ({ ...prevState, isSimulating: true, progress: 0 }));
         if (attackState.type) {
             toast({
@@ -73,6 +141,20 @@ export default function Home() {
         });
     }
   };
+  
+  const toggleCapture = () => {
+    const newIsCapturing = !isCapturing;
+    if (newIsCapturing && packets.length === 0) {
+      // Prefill some data on first start
+      const initialPackets = Array.from({ length: 10 }, (_, i) => generateRandomPacket(i + 1)).reverse();
+      setPackets(initialPackets);
+    }
+    setIsCapturing(newIsCapturing);
+  };
+  
+  const clearPackets = () => {
+    setPackets([]);
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
@@ -84,7 +166,13 @@ export default function Home() {
             <TabsTrigger value="simulation">Attack Simulation</TabsTrigger>
           </TabsList>
           <TabsContent value="capture" className="mt-6">
-            <LiveCapture attackState={attackState} />
+            <LiveCapture 
+              attackState={attackState} 
+              packets={packets}
+              isCapturing={isCapturing}
+              toggleCapture={toggleCapture}
+              clearPackets={clearPackets}
+            />
           </TabsContent>
           <TabsContent value="simulation" className="mt-6">
             <AttackSimulation 
