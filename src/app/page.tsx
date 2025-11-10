@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Header from '@/components/header';
 import LiveCapture from '@/components/dashboard/live-capture';
@@ -76,6 +76,7 @@ export default function Home() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [packets, setPackets] = useState<Packet[]>([]);
   const { toast } = useToast();
+  const nextPacketId = useRef(1);
 
   const isAttackActive = attackState.isSimulating && attackState.type === 'syn_flood';
 
@@ -108,10 +109,11 @@ export default function Home() {
       interval = setInterval(() => {
         setPackets(prevPackets => {
           let newPacket: Packet;
+          const newId = nextPacketId.current++;
           if (isAttackActive && attackState.targetIp) {
-            newPacket = generateSynPacket(prevPackets.length + 1, attackState.targetIp);
+            newPacket = generateSynPacket(newId, attackState.targetIp);
           } else {
-            newPacket = generateRandomPacket(prevPackets.length + 1);
+            newPacket = generateRandomPacket(newId);
           }
           const newPackets = [newPacket, ...prevPackets];
           return newPackets.length > 200 ? newPackets.slice(0, 200) : newPackets;
@@ -146,7 +148,10 @@ export default function Home() {
     const newIsCapturing = !isCapturing;
     if (newIsCapturing && packets.length === 0) {
       // Prefill some data on first start
-      const initialPackets = Array.from({ length: 10 }, (_, i) => generateRandomPacket(i + 1)).reverse();
+      const initialPackets = Array.from({ length: 10 }, (_, i) => {
+        const newId = nextPacketId.current++;
+        return generateRandomPacket(newId);
+      }).reverse();
       setPackets(initialPackets);
     }
     setIsCapturing(newIsCapturing);
