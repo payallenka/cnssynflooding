@@ -98,6 +98,7 @@ export default function Home() {
         });
       }
       setAttackState(prevState => ({ ...prevState, isSimulating: false, progress: 0, type: prevState.type }));
+      setIsCapturing(false); // Stop capture when attack finishes
     }
     return () => clearTimeout(timer);
   }, [attackState.isSimulating, attackState.progress, attackState.duration, attackState.type, toast]);
@@ -159,6 +160,7 @@ export default function Home() {
   
   const clearPackets = () => {
     setPackets([]);
+    nextPacketId.current = 1;
   }
 
   return (
